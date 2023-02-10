@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# my
+lenta-ru-news.csv*
+unigrams.csv
+bigrams.csv
+
