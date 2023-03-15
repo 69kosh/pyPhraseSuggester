@@ -132,4 +132,4 @@ dmypy.json
 lenta-ru-news.csv*
 unigrams.csv
 bigrams.csv
-
+grams/
