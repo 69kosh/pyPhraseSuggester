@@ -1,0 +1,6 @@
+rapidfuzz
+nltk
+pymongo
+fastapi
+uvicorn
+pandas

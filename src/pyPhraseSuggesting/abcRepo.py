@@ -33,8 +33,8 @@ class ABCRepo(ABC):
 	def getBackwardBigrams(self, id:str | int) -> Bigrams:
 		...
 
-	def matchWords(self, prefix: str, limit: int = 100) -> list[Unigram | None]:
+	def matchWords(self, prefix: str, limit: int = 100) -> list[str|int]:
 		...
 
-	def matchFuzzyWords(self, word: str, limit: int = 100) -> list[Unigram | None]:
+	def matchFuzzyWords(self, word: str, limit: int = 100, additionalIds: list[str|int] = []) -> list[str|int]:
 		...

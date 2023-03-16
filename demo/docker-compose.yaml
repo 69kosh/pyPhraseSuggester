@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./../src/pyPhraseSuggesting:/app/pyPhraseSuggesting:ro
+    ports:
+      - 80:8000

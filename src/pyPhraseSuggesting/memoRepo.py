@@ -1,5 +1,4 @@
 from .abcRepo import *
-import sys
 from rapidfuzz import *
 
 class MemoRepo(ABCRepo):
@@ -7,7 +6,7 @@ class MemoRepo(ABCRepo):
 		super().__init__()
 
 		self._prepareUnigrams(unigrams)
-		self._prepareBigrams(bigrams, 1000)
+		self._prepareBigrams(bigrams, 10000)
 		self._prepareFuzzyIndex()
 
 		# print(sys.getsizeof(self._unigrams), len(self._unigrams))
@@ -21,34 +20,38 @@ class MemoRepo(ABCRepo):
 
 		unigrams = sorted(unigrams, key=lambda x: x[1], reverse=True)
 
-		id = 0
+		id:int = 0
 		for uni in unigrams:
-			self._unigrams.append(Unigram(id, uni[0], uni[1]))
-			self._word2Id[uni[0]] = id
+			word = str(uni[0])
+			cnt = int(uni[1])
+			self._unigrams.append(Unigram(id, word, cnt))
+			self._word2Id[word] = id
 
-			if uni[0][0] not in self._prefix12Id:
-				self._prefix12Id[uni[0][0:1]] = []
-			self._prefix12Id[uni[0][0:1]].append(id)
+			if word[0] not in self._prefix12Id:
+				self._prefix12Id[word[0:1]] = []
+			self._prefix12Id[word[0:1]].append(id)
 
-			if len(uni[0]) > 1:
-				if uni[0][0:2] not in self._prefix22Id:
-					self._prefix22Id[uni[0][0:2]] = []
-				self._prefix22Id[uni[0][0:2]].append(id)
+			if len(word) > 1:
+				if word[0:2] not in self._prefix22Id:
+					self._prefix22Id[word[0:2]] = []
+				self._prefix22Id[word[0:2]].append(id)
 
-			if len(uni[0]) > 2:
-				if uni[0][0:3] not in self._prefix32Id:
-					self._prefix32Id[uni[0][0:3]] = []
-				self._prefix32Id[uni[0][0:3]].append(id)
+			if len(word) > 2:
+				if word[0:3] not in self._prefix32Id:
+					self._prefix32Id[word[0:3]] = []
+				self._prefix32Id[word[0:3]].append(id)
 
 			id += 1
+		
+		# print(self._prefix12Id['f'])
 
 	def _prepareBigrams(self, bigrams, limit = 100):
 		self._forwardBi = {}
 		self._backwardBi = {}
 
 		for bi in bigrams:
-			fromId = self._word2Id[bi[0]]
-			toId = self._word2Id[bi[1]]
+			fromId = self._word2Id[str(bi[0])]
+			toId = self._word2Id[str(bi[1])]
 			count = int(bi[2])
 
 			if fromId not in self._forwardBi:
@@ -73,7 +76,7 @@ class MemoRepo(ABCRepo):
 
 		for id in self._backwardBi:
 			for id2 in self._backwardBi[id].words:
-				self._backwardBi[id].words[id2] /= self._backwardBi[id].count
+				self._backwardBi[id].words[id2] /= self._forwardBi[id2].count
 
 	def _prepareFuzzyIndex(self):
 		self._fuzzyIndex = {}
@@ -114,7 +117,7 @@ class MemoRepo(ABCRepo):
 				res.append(None)
 		return res
 
-	def matchWords(self, prefix: str, limit: int = 100) -> dict[str|int, float]:
+	def matchWords(self, prefix: str, limit: int = 100) -> list[str|int]:
 		ids = []
 		if len(prefix) > 2:
 			if prefix[0:3] not in self._prefix32Id:
@@ -150,7 +153,7 @@ class MemoRepo(ABCRepo):
 		if id in self._backwardBi:
 			return self._backwardBi[id]
 
-	def matchFuzzyWords(self, word: str, limit: int = 100) -> dict[str|int, float]:
+	def matchFuzzyWords(self, word: str, limit: int = 100, additionalIds: list[str|int] = []) -> dict[str|int, float]:
 		'''Для слов которые не нашли четко, подбираем близкие варианты
 			Для этого используем сравнение по левенштейну, 
 			а чтобы не перебирать все слова, бьем слово на триграмы и ищем 
@@ -161,7 +164,7 @@ class MemoRepo(ABCRepo):
 		# если фраза короткая - ищем по префиксу
 		# ids = []
 		# if len(word) < 5:
-		ids = self.matchWords(prefix=word, limit = limit)
+		ids = self.matchWords(prefix=word, limit = limit) + additionalIds
 		# print(ids)
 		# разбиваем на триграммы
 		lists = {}
@@ -192,16 +195,15 @@ class MemoRepo(ABCRepo):
 				ids.append(id)
 		
 		# print(ids)
-		unis = self.getUnigrams(set(ids), limit)
+		unis = self.getUnigrams(set(ids))
 		ratios = {}
 		for uni in unis:
 			ratios[uni.id] = (fuzz.ratio(word, uni.word) + 10.0)/110.0
 			# print(word, uni.word, ratios[uni.id])
 		
+		
 		ratios = dict(sorted(ratios.items(), key=lambda item: item[1], reverse=True))
 
+		# print(dict(list(ratios.items())[0:limit]))
 		return dict(list(ratios.items())[0:limit])
 
-		# unis = self.getUnigrams(list(ratios.keys())[0:limit])
-		# print(unis, len(unis))
-		# return unis

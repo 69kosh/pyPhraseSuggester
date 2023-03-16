@@ -157,12 +157,13 @@ if __name__ == '__main__':
     with open('unigrams.csv', 'w', encoding='utf8', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for key in result:
-            writer.writerow([key, result[key].cnt])
+            if result[key].cnt > 1:
+                writer.writerow([key, result[key].cnt])
 
     # формируем csv биграм
     with open('bigrams.csv', 'w', encoding='utf8', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for key in result:
             for key2 in result[key].bi:
-                # if result[key]['bi'][key2] > 1:
-                writer.writerow([key, key2, result[key].bi[key2]])
+                if result[key].bi[key2] > 1:
+                    writer.writerow([key, key2, result[key].bi[key2]])

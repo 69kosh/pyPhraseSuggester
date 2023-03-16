@@ -143,10 +143,13 @@ class Finder(ContextDecorator):
 
 					chains = newChains
 				else:
+					newChains: list[Chain] = []
 					# если слово определено, то добавляем его во все цепочки не приумножая их
 					for chain in chains:
-						chain = self._appendToChain(
-							chain=chain, id=uni.id, word=uni.word)
+						newChains.append(self._appendToChain(
+							chain=chain, id=uni.id, word=uni.word))
+
+					chains = newChains
 		else:
 			# однозначная цепочка
 			chains.append(Chain([x.word for x in permanentUnis],
@@ -174,18 +177,31 @@ class Finder(ContextDecorator):
 			# print(matchedProbs)
 		else:
 			# иначе ищем подходящие неоконченные слова
-			matchedProbs=self.repo.matchFuzzyWords(half, limit)
+			# в т.ч. берём в расчет все слова из биграм 
+			ids = []
+			for chain in chains:
+				if len(chain.ids):
+					bi=self.repo.getForwardBigrams(chain.ids[-1])
+					if bi:
+						ids += bi.words.keys()
+			matchedProbs=self.repo.matchFuzzyWords(half, len(ids) + 10000, ids)
 
 		matchedIds=list(matchedProbs.keys())
 
 		# взвешиваем с учетом популярности слова
 		unis = self.repo.getUnigrams(matchedIds)
 		sumCnt=sum([uni.count for uni in unis])
-		# чем меньше введено слово, тем большое ориентируемся на популярность
-		a = (min(len(half), 8) + 2) / 10
-		matchedProbs=dict([(uni.id, ((1-a)*(uni.count / sumCnt) + a * matchedProbs[uni.id])) for uni in unis])
 
-		# print(matchedIds)
+		# выбираем максимальное значение либо по популярности слова, 
+		# либо по совпадению, а если слово начинается с указанного, 
+		# то еще + 0.5
+
+		matchedProbs=dict([(uni.id, (
+				0.5 * (uni.word.find(half, 0) == 0) + 
+				0.5 * max((uni.count / sumCnt), matchedProbs[uni.id])
+			)) for uni in unis])
+
+		# print(matchedProbs)
 
 		newChains: list[Chain] = []
 		# для каждой цепочки
@@ -193,13 +209,15 @@ class Finder(ContextDecorator):
 			#  если она не пустая, то фильтруем список подходящих слов по вероятности быть в биграме
 			if len(chain.ids):
 				ids = self._intersectIdsForward(chain.ids[-1], matchedIds)
+				# print(ids)
 			else:
 				ids = matchedIds
 			# print(ids)
 			# для каждого оставшегося варианта порождаем еще одну цепочку с ним
 			for id in ids:
-				prob=self._calcChainProb(
-					chain.ids + [id]) * matchedProbs[id]
+				prob = chain.prob * matchedProbs[id]
+				# prob=self._calcChainProb(
+				# 	chain.ids + [id]) * matchedProbs[id]
 				# print(id, prob, matchedProbs[id])
 				if prob > 0 and id not in chain.ids and id != seId:
 					uni=self.repo.getUnigrams([id])[0]
@@ -208,7 +226,8 @@ class Finder(ContextDecorator):
 						chain.ids + [uni.id],
 						prob))
 
-		return newChains
+		chains=self._sortAndLimitChains(newChains, limit)
+		return chains
 
 	@ timeit
 	def _expandChainsForward(self, chains: list[Chain], inception: int=2, limit: int=100, threshold=0.0001):
@@ -316,15 +335,12 @@ class Finder(ContextDecorator):
 
 		return chains
 
-	def find(self, phrase: str) -> list[Chain]:
+	def find(self, phrase: str, limit=100) -> list[Chain]:
 
-		chains: list[Chain]=self._permanentChains(phrase, limit=10000)
-		# print(chains)
+		chains: list[Chain]=self._permanentChains(phrase, limit=limit*10)
 		chains=self._expandChainsForward(
-			chains, inception=2, limit=100, threshold=0.0001)
-		# print(chains, len(chains))
+			chains, inception=2, limit=limit*5, threshold=0.0001)
 		chains=self._expandChainsBackward(
-			chains, inception=2, limit=100, threshold=0.0001)
-		# print(chains, len(chains))
+			chains, inception=2, limit=limit*5, threshold=0.0001)
 
 		return chains
