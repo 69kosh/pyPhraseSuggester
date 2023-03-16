@@ -1,14 +1,18 @@
 from pyPhraseSuggesting import Finder, MemoRepo
 from fastapi import FastAPI
-import pandas as pd
+import csv
 
-app = FastAPI()
 
-unigrams = pd.read_csv("unigrams.csv", encoding='utf8', header=None, delimiter=',').to_dict('split')['data']
-bigrams = pd.read_csv("bigrams.csv", encoding='utf8', header=None, delimiter=',').to_dict('split')['data']
+with open('unigrams.csv', encoding='utf8') as csvfile:
+    unigrams = [row for row in csv.reader(csvfile, delimiter=',')]
+with open('bigrams.csv', encoding='utf8') as csvfile:
+    bigrams = [row for row in csv.reader(csvfile, delimiter=',')]
+    # bigrams = [row[0].split(' ')+[row[1]] for row in csv.reader(csvfile, delimiter='\t')]
 
 repo = MemoRepo(unigrams=unigrams, bigrams=bigrams)
 finder = Finder(repo)
+
+app = FastAPI()
 
 @app.get("/")
 async def find(phrase: str ='', limit: int = 20):

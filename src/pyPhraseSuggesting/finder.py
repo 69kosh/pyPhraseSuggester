@@ -1,10 +1,10 @@
 from contextlib import ContextDecorator
-from nltk.tokenize import RegexpTokenizer
 from dataclasses import dataclass
 from .abcRepo import ABCRepo
 
 from functools import wraps
 import time
+import re
 
 
 def timeit(func):
@@ -40,8 +40,8 @@ class Finder(ContextDecorator):
 		self.repo.close()
 
 	def _splitPhrase(self, phrase: str):
-		wordsTokenizer = RegexpTokenizer(r'[\w-]+')
-		words = wordsTokenizer.tokenize(phrase.lower())
+		wordsTokenizer = re.compile(r'[\w-]+', re.UNICODE | re.MULTILINE | re.DOTALL)
+		words = wordsTokenizer.findall(phrase.lower())
 		# print(phrase.lower(), words, phrase[-1] == ' ')
 		# print(words, words[0:-1])
 		if len(phrase) < 1:
