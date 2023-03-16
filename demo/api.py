@@ -1,7 +1,8 @@
 from pyPhraseSuggesting import Finder, MemoRepo
 from fastapi import FastAPI
-import csv
+from fastapi.middleware.cors import CORSMiddleware
 
+import csv
 
 with open('unigrams.csv', encoding='utf8') as csvfile:
     unigrams = [row for row in csv.reader(csvfile, delimiter=',')]
@@ -13,6 +14,15 @@ repo = MemoRepo(unigrams=unigrams, bigrams=bigrams)
 finder = Finder(repo)
 
 app = FastAPI()
+
+origins = ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def find(phrase: str ='', limit: int = 20):
