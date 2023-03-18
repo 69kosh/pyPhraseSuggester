@@ -1,40 +1,43 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
 @dataclass
 class Unigram:
-	id: str | int
-	word: str
-	count: int = 0
+    id: str | int
+    word: str
+    count: int = 0
 
 
 @dataclass
 class Bigrams:
-	id: str | int
-	count: int
-	words: dict[str | int, float]
+    id: str | int
+    count: int
+    words: dict[str | int, float]
 
 
 class ABCRepo(ABC):
 
-	def close(self):
-		...
+    @abstractmethod
+    def getUnigrams(self, ids: list[str | int], limit: int = None) -> list[Unigram | None]:  # pragma: no cover
+        ...
 
-	def getUnigrams(self, ids: list[str | int], limit: int = 100) -> list[Unigram | None]:
-		...
+    @abstractmethod
+    def findWords(self, words: list[str]) -> list[Unigram | None]:  # pragma: no cover
+        ...
 
-	def findWords(self, words: list[str]) -> list[Unigram | None]:
-		...
+    @abstractmethod
+    def getForwardBigrams(self, id: str | int) -> Bigrams | None:  # pragma: no cover
+        ...
 
-	def getForwardBigrams(self, id:str | int) -> Bigrams:
-		...
-	
-	def getBackwardBigrams(self, id:str | int) -> Bigrams:
-		...
+    @abstractmethod
+    def getBackwardBigrams(self, id: str | int) -> Bigrams | None:  # pragma: no cover
+        ...
 
-	def matchWords(self, prefix: str, limit: int = 100) -> list[str|int]:
-		...
+    @abstractmethod
+    def matchWords(self, prefix: str, limit: int = 100) -> list[str | int]:  # pragma: no cover
+        ...
 
-	def matchFuzzyWords(self, word: str, limit: int = 100, additionalIds: list[str|int] = []) -> list[str|int]:
-		...
+    @abstractmethod
+    def matchFuzzyWords(self, word: str, limit: int = 100, additionalIds: list[str | int] = []) -> dict[str | int, float]:  # pragma: no cover
+        ...

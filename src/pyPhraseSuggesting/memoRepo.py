@@ -2,11 +2,11 @@ from .abcRepo import *
 from rapidfuzz import *
 
 class MemoRepo(ABCRepo):
-	def __init__(self, unigrams, bigrams) -> None:
+	def __init__(self, unigrams, bigrams, bigramsLimit = 10000) -> None:
 		super().__init__()
 
 		self._prepareUnigrams(unigrams)
-		self._prepareBigrams(bigrams, 10000)
+		self._prepareBigrams(bigrams, bigramsLimit)
 		self._prepareFuzzyIndex()
 
 		# print(sys.getsizeof(self._unigrams), len(self._unigrams))
@@ -93,20 +93,10 @@ class MemoRepo(ABCRepo):
 					self._fuzzyIndex[tri] = []
 				self._fuzzyIndex[tri].append(uni.id)
 
-		# maxLen = 0
-		# maxTri = ''
-		# for tri in self._fuzzyIndex:
-		# 	if maxLen < len(self._fuzzyIndex[tri]):
-		# 		maxLen = len(self._fuzzyIndex[tri])
-		# 		maxTri = tri
-		# 		print(maxTri, maxLen)
-		# print(self._fuzzyIndex, len(self._fuzzyIndex))
-
-	def getUnigrams(self, ids: list[str | int], limit: int = 100) -> list[Unigram | None]:
-		res = []
-		for id in ids:
-			res.append(self._unigrams[id])
-		return res
+	def getUnigrams(self, ids: list[str | int], limit: int = None) -> list[Unigram | None]:
+		max = len(self._unigrams)
+		limit = max if limit is None else limit
+		return [self._unigrams[id] if id < max else None for id in ids[0:limit]]
 
 	def findWords(self, words: list[str]) -> list[Unigram | None]:
 		res = []
@@ -141,15 +131,14 @@ class MemoRepo(ABCRepo):
 			for uni in self._unigrams[0:limit]:
 				ids.append(uni.id)
 
-		# print(self._prefix32Id, prefix[0:3], len(prefix), ids)
-		return ids
+		return ids[0:limit]
 
-	def getForwardBigrams(self, id: str | int) -> Bigrams:
+	def getForwardBigrams(self, id: str | int) -> Bigrams | None:
 		if id in self._forwardBi:
 			return self._forwardBi[id]
 
 
-	def getBackwardBigrams(self, id: str | int) -> Bigrams:
+	def getBackwardBigrams(self, id: str | int) -> Bigrams | None:
 		if id in self._backwardBi:
 			return self._backwardBi[id]
 
@@ -159,7 +148,6 @@ class MemoRepo(ABCRepo):
 			а чтобы не перебирать все слова, бьем слово на триграмы и ищем 
 			подходящие слова, с включением хотя бы 50% этих грам по индексу триграм
 				https://pypi.org/project/rapidfuzz/'''
-		...
 
 		# если фраза короткая - ищем по префиксу
 		# ids = []
@@ -195,15 +183,12 @@ class MemoRepo(ABCRepo):
 				ids.append(id)
 		
 		# print(ids)
-		unis = self.getUnigrams(set(ids))
+		unis = self.getUnigrams(list(set(ids)))
 		ratios = {}
 		for uni in unis:
 			ratios[uni.id] = (fuzz.ratio(word, uni.word) + 10.0)/110.0
 			# print(word, uni.word, ratios[uni.id])
 		
-		
-		ratios = dict(sorted(ratios.items(), key=lambda item: item[1], reverse=True))
-
-		# print(dict(list(ratios.items())[0:limit]))
-		return dict(list(ratios.items())[0:limit])
+		# сортируем и подрезаем, делаем словарь
+		return dict(sorted(ratios.items(), key=lambda item: item[1], reverse=True)[0:limit])
 

@@ -1,5 +1,5 @@
-from finder import Finder
-from memoRepo import MemoRepo
+from pyPhraseSuggesting.finder import Finder
+from pyPhraseSuggesting.memoRepo import MemoRepo
 import pandas as pd
 
 unigrams = [('мама', 2), ('мыла', 3), ('раму', 2), ('руки', 1), ('мылом', 1), ('кусок', 1), ('_', 4)]
@@ -17,9 +17,9 @@ bigrams = [('_', 'мама', 1), ('мама', 'мыла', 1), ('мыла', 'ра
 # bigrams = bi.to_dict('split')['data']
 
 
-def test_phrase_split():
-    print(len(bigrams))
-    finder = Finder(MemoRepo(unigrams, bigrams))
-    print(finder.find('мыла'))
-    assert 0
+# def test_phrase_split():
+#     print(len(bigrams))
+#     finder = Finder(MemoRepo(unigrams, bigrams))
+#     print(finder.find('мыла'))
+#     assert 0
 

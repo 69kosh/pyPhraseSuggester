@@ -171,10 +171,9 @@ class Finder(ContextDecorator):
 				matchedProbs=dict([(key, bi.words[key] / sumCnt)
 								for key in bi.words])
 			else:
-				# самые популярные слова
-				ids = self.repo.matchWords('')
+				# тупо самые популярные слова
+				ids = self.repo.matchWords('', limit=limit)
 				matchedProbs=dict([(id, 1.0) for id in ids])
-			# print(matchedProbs)
 		else:
 			# иначе ищем подходящие неоконченные слова
 			# в т.ч. берём в расчет все слова из биграм 
@@ -184,6 +183,7 @@ class Finder(ContextDecorator):
 					bi=self.repo.getForwardBigrams(chain.ids[-1])
 					if bi:
 						ids += bi.words.keys()
+
 			matchedProbs=self.repo.matchFuzzyWords(half, len(ids) + 10000, ids)
 
 		matchedIds=list(matchedProbs.keys())
@@ -201,7 +201,7 @@ class Finder(ContextDecorator):
 				0.5 * max((uni.count / sumCnt), matchedProbs[uni.id])
 			)) for uni in unis])
 
-		# print(matchedProbs)
+
 
 		newChains: list[Chain] = []
 		# для каждой цепочки
@@ -209,16 +209,12 @@ class Finder(ContextDecorator):
 			#  если она не пустая, то фильтруем список подходящих слов по вероятности быть в биграме
 			if len(chain.ids):
 				ids = self._intersectIdsForward(chain.ids[-1], matchedIds)
-				# print(ids)
 			else:
 				ids = matchedIds
-			# print(ids)
+
 			# для каждого оставшегося варианта порождаем еще одну цепочку с ним
 			for id in ids:
 				prob = chain.prob * matchedProbs[id]
-				# prob=self._calcChainProb(
-				# 	chain.ids + [id]) * matchedProbs[id]
-				# print(id, prob, matchedProbs[id])
 				if prob > 0 and id not in chain.ids and id != seId:
 					uni=self.repo.getUnigrams([id])[0]
 					newChains.append(Chain(

@@ -3,10 +3,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import csv
+import os
 
-with open('unigrams.csv', encoding='utf8') as csvfile:
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
+with open(dir_path+'/unigrams.csv', encoding='utf8') as csvfile:
     unigrams = [row for row in csv.reader(csvfile, delimiter=',')]
-with open('bigrams.csv', encoding='utf8') as csvfile:
+with open(dir_path+'/bigrams.csv', encoding='utf8') as csvfile:
     bigrams = [row for row in csv.reader(csvfile, delimiter=',')]
     # bigrams = [row[0].split(' ')+[row[1]] for row in csv.reader(csvfile, delimiter='\t')]
 
