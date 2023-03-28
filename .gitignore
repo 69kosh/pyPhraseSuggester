@@ -130,3 +130,7 @@ dmypy.json
 
 # my
 grams/
+
+coverage.*
+.coverage
+test.bat

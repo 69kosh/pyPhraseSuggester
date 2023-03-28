@@ -1,6 +1,6 @@
 from contextlib import ContextDecorator
 from dataclasses import dataclass
-from .abcRepo import ABCRepo
+from .abcRepo import ABCRepo, Unigram, Bigrams
 
 from functools import wraps
 import time
@@ -8,335 +8,307 @@ import re
 
 
 def timeit(func):
-	@wraps(func)
-	def timeit_wrapper(*args, **kwargs):
-		start_time = time.perf_counter()
-		result = func(*args, **kwargs)
-		end_time = time.perf_counter()
-		total_time = end_time - start_time
-		print(
-			f'Function {func.__name__} {kwargs} Took {total_time:.4f} seconds')
-		return result
-	return timeit_wrapper
+    @wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(
+            f'Function {func.__name__} {kwargs} Took {total_time:.4f} seconds')
+        return result
+    return timeit_wrapper
 
 
 @dataclass
 class Chain:
-	words: list[str]
-	ids: list[int]
-	prob: float
+    words: list[str]
+    ids: list[int]
+    prob: float
+    bias: float
+
+    def __hash__(self):
+        return hash(' '.join(self.words))
 
 
-class Finder(ContextDecorator):
-	def __init__(self, repo: ABCRepo) -> None:
-		super().__init__()
-		self.repo = repo
+class Finder:#(ContextDecorator):
+    def __init__(self, repo: ABCRepo) -> None:
+        # super().__init__()
+        self.repo = repo
 
-	def __enter__(self, repo: ABCRepo) -> None:
-		self.repo = repo
-		return self
+    # def __enter__(self, repo: ABCRepo) -> None:
+    #     self.repo = repo
+    #     return self
 
-	def __exit__(self, *exc):
-		self.repo.close()
+    # def __exit__(self, *exc):
+    #     self.repo.close()
 
-	def _splitPhrase(self, phrase: str):
-		wordsTokenizer = re.compile(r'[\w-]+', re.UNICODE | re.MULTILINE | re.DOTALL)
-		words = wordsTokenizer.findall(phrase.lower())
-		# print(phrase.lower(), words, phrase[-1] == ' ')
-		# print(words, words[0:-1])
-		if len(phrase) < 1:
-			return ([], '')
-		if phrase[-1] == ' ':
-			return (words, '')
-		else:
-			return (words[0:-1], words[-1])
+    def splitPhrase(self, phrase: str) -> tuple[list[str], str]:
+        wordsTokenizer = re.compile(
+            r'[\w-]+', re.UNICODE | re.MULTILINE | re.DOTALL)
+        words = wordsTokenizer.findall(phrase.lower())
+        if len(phrase) < 1:
+            return ([], '')
+        if phrase[-1] == ' ':
+            return (words, '')
+        else:
+            return (words[0:-1], words[-1])
 
-	def _getBiForwardProb(self, id1, id2) -> float:
-		bi = self.repo.getForwardBigrams(id1)
-		if bi and id2 in bi.words:
-			return bi.words[id2]
-		else:
-			return 0.0  # min(bi.words.values())
+    def calcMinProb(self, chains: list[Chain], lowTheshold=0.01, softLimit=100) -> float:
+        if len(chains):
+            if len(chains) > softLimit:
+                sortedChains = sorted(
+                    chains, key=lambda x: x.prob, reverse=True)
+                minProb = sortedChains[softLimit - 1].prob
+            else:
+                minProb = lowTheshold * max(chains, key=lambda x: x.prob).prob
+        else:
+            minProb = 0.0
 
-	def _calcChainProb(self, ids) -> float:
-		p = 1.0
-		if len(ids) < 2:
-			return p
-		idids = list(zip(ids[0:-1], ids[1:]))
-		# print(idids)
-		for idid in idids:
-			p *= self._getBiForwardProb(idid[0], idid[1])
+        return minProb
 
-		return p
+    def combineWordsToChains(self, chains: list[Chain], unigrams: list[Unigram], probs: dict[float], lowTheshold=0.01, softLimit=100) -> list[Chain]:
+        ''' Добавляем новое слово/слова к цепочкам, порождая новые
+                В каждую цепочку пытаемся вставить каждое слово в каждую позицию,
+                откидываем вариванты ниже порога. 
+                Порог считаем, либо как часть от максимальной (Pmax *0.01), если мы входим в софтлимит 
+                по количеству вариантов, либо, если стало больше софтлимит как P последнего элемента лимита 
+                (пока нет, пока только минимальный, его проще получить - без сортировки)
+        '''
+        resChains: dict[Chain] = {}
 
-	def _intersectIdsForward(self, id, ids):
-		bi = self.repo.getForwardBigrams(id)
-		# print(bi)
-		# for id in bi.words.keys():
-		#     print(self.repo.getUnigrams([id]))
-		if bi:
-			return list(set(ids) & set(bi.words.keys()))
-		else:
-			return []
+        wordsBigrams = dict(
+            [(uni.id, self.repo.getForwardBigrams(uni.id)) for uni in unigrams])
 
-	def _appendToChain(self, chain: Chain, id: str | int, word: str) -> Chain:
-		if len(chain.ids):
-			return Chain(ids=chain.ids + [id], words=chain.words + [word], prob=chain.prob * self._getBiForwardProb(chain.ids[-1], id))
-		else:
-			return Chain(ids=[id], words=[word], prob=chain.prob)
+        for chain in chains:
+            # тупо в лоб достаем все биграммы для расчета вероятности
+            # пробегаемся по позициям, подставляя слова, добавляя годные варианты
+            chainBigrams = dict(
+                [(id, self.repo.getForwardBigrams(id)) for id in chain.ids])
 
-	def _prependToChain(self, chain: Chain, id: str | int, word: str) -> Chain:
-		if len(chain.ids):
-			return Chain(ids=[id] + chain.ids, words=[word] + chain.words, prob=chain.prob * self._getBiForwardProb(id, chain.ids[0]))
-		else:
-			return Chain(ids=[id], words=[word], prob=chain.prob)
+            bigrams = chainBigrams | wordsBigrams
 
-	def _sortAndLimitChains(self, chains: list[Chain], limit=100) -> list[Chain]:
-		newChains = sorted(chains, key=lambda x: x.prob, reverse=True)
-		return newChains[0:limit]
+            minProb = self.calcMinProb(
+                list(resChains.values()), lowTheshold=lowTheshold, softLimit=softLimit)
 
-	def _getSEId(self):
-		# конец-начало
-		seUni = self.repo.findWords(['_'])
-		# print(seUni)
-		if seUni[0] is not None:
-			startEndUni = seUni[0]
-			seId = startEndUni.id
-		else:
-			seId = -1
+            for place in range(0, len(chain.ids) + 1):
+                for uni in unigrams:
+                    id = uni.id
+                    word = uni.word
+                    wordBi = wordsBigrams[id]
 
-		return seId
+                    if wordBi is None and place < len(chain.ids):
+                        continue
 
-	@timeit
-	def _permanentChains(self, phrase, limit: int = 100) -> list[Chain]:
-		chains: list[Chain] = []
-		newChains: list[Chain] = []
+                    bias = chain.bias * probs[id]  # база старая и база новая
+                    p = bias
+                    ids = chain.ids[:]
+                    ids.insert(place, id)
+                    words = chain.words[:]
+                    words.insert(place, word)
+                    if len(ids) < 2:
+                        ch = Chain(words, ids, p, bias)
+                        resChains[hash(ch)] = ch
+                        continue
 
-		(words, half) = self._splitPhrase(phrase)
-		# print((words, half))
+                    idids = list(zip(ids[0:-1], ids[1:]))
 
-		seId = self._getSEId()
+                    stop = False
+                    for (id1, id2) in idids:
+                        if id1 in bigrams:
+                            if bigrams[id1] is not None and id2 in bigrams[id1].words:
+                                p *= bigrams[id1].words[id2]
+                            else:
+                                stop = True
+                                break
 
-		# можем и не найти, надо обрабатывать
-		permanentUnis = self.repo.findWords(words)
-		if None in permanentUnis:
-			chains.append(Chain([], [], 1.0))
-			# если слова не обнаружены в словаре - берём самые близкие
-			# комбинируем, получая множество цепочек
-			for uni, word in zip(permanentUnis, words):
-				if uni is None:
-					probs = self.repo.matchFuzzyWords(word, 10)
-					# print(probs)
-					ids = list(probs.keys())
-					unis = self.repo.getUnigrams(ids)
+                        if p < minProb:
+                            # print(minProb)
+                            stop = True
+                            break
 
-					if len(unis) == 0:
-						return []  # вообще ничего не нашли
-					
-					newChains: list[Chain] = []
-					# создаем новые цепочки на основе старого списка, 
-					# размножая каждую цепочку на найденные варианты
-					for chain in chains:
-						for uni in unis:
-							newChains.append(self._appendToChain(
-								chain=chain, id=uni.id, word=uni.word))
+                    if not stop:
+                        ch = Chain(words, ids, p, bias)
+                        resChains[hash(ch)] = ch
+                        # resChains.add(Chain(words, ids, p, bias))
 
-					chains = newChains
-				else:
-					newChains: list[Chain] = []
-					# если слово определено, то добавляем его во все цепочки не приумножая их
-					for chain in chains:
-						newChains.append(self._appendToChain(
-							chain=chain, id=uni.id, word=uni.word))
+        return list(resChains.values())
 
-					chains = newChains
-		else:
-			# однозначная цепочка
-			chains.append(Chain([x.word for x in permanentUnis],
-								[x.id for x in permanentUnis],
-								self._calcChainProb([x.id for x in permanentUnis])
-			))
+    @ timeit
+    def getChainsByWords(self, words: list[str], lowTheshold=0.01, softLimit=100, fuzzyLimit=10, limit=100) -> list[Chain]:
+        ''' Из списка слов формируем возможны варианты цепочек
+                Если все слова найдены, то варианты есть только у последнего слова, используемого как префикс
+                Если есть нераспозананные слова, то цепочки размножаются из найденных вариантов нечеткого поиска, 
+                последнее слово тоже по префиксу
+                Для каждого из кандидатов считаем вероятность, и откидываем, если она слишком низкая
+                Порог считаем, либо как часть от максимальной (Pmax *0.01), если мы входим в софтлимит 
+                по количеству вариантов, либо, если стало больше софтлимит как P последнего элемента лимита
+        '''
+        chains: list[Chain] = [Chain([], [], 1.0, 1.0)]
+        # if len(words) == 0:
+        unis = self.repo.findWords(words)
+        for (uni, word) in zip(unis, words):
+            if uni is not None:
+                chains = self.combineWordsToChains(
+                    chains, [uni], {uni.id: 1.0}, lowTheshold, softLimit)
+            else:
+                fuzzyProbs = self.repo.matchFuzzyWords(word, fuzzyLimit)
 
-		# если последнее слово закончено, возвращаем цепочки
-		# print(chains)
-		if half == '' and words:
-			return chains
+                fuzzyIds = list(fuzzyProbs.keys())
+                fuzzyUnis = self.repo.getUnigrams(fuzzyIds)
 
-		# если пусто - ищем несколько самых популярных слов
-		if half == '' and len(words) == 0:
-			if seId >= 0:
-				# есть стартовый токен - достаем вероятость по биграме
-				bi=self.repo.getForwardBigrams(seId)
-				sumCnt=sum(list(bi.words.values()))
-				matchedProbs=dict([(key, bi.words[key] / sumCnt)
-								for key in bi.words])
-			else:
-				# тупо самые популярные слова
-				ids = self.repo.matchWords('', limit=limit)
-				matchedProbs=dict([(id, 1.0) for id in ids])
-		else:
-			# иначе ищем подходящие неоконченные слова
-			# в т.ч. берём в расчет все слова из биграм 
-			ids = []
-			for chain in chains:
-				if len(chain.ids):
-					bi=self.repo.getForwardBigrams(chain.ids[-1])
-					if bi:
-						ids += bi.words.keys()
+                # взвешиваем с учетом популярности слова
+                sumCnt = sum([uni.count for uni in fuzzyUnis])
 
-			matchedProbs=self.repo.matchFuzzyWords(half, len(ids) + 10000, ids)
+                # выбираем максимальное значение либо по популярности слова,
+                # либо по совпадению, а если слово начинается с указанного,
+                # то еще + 0.25
 
-		matchedIds=list(matchedProbs.keys())
+                matchedProbs = dict([(uni.id, (
+                    0.25 * (uni.word.find(word, 0) == 0) +
+                    0.25 * max((uni.count / sumCnt), fuzzyProbs[uni.id]) +
+                    0.25 * (uni.count / sumCnt) +
+                    0.25 * fuzzyProbs[uni.id]
+                )) for uni in fuzzyUnis])
 
-		# взвешиваем с учетом популярности слова
-		unis = self.repo.getUnigrams(matchedIds)
-		sumCnt=sum([uni.count for uni in unis])
+                chains = self.combineWordsToChains(
+                    chains, fuzzyUnis, matchedProbs, lowTheshold, softLimit)
 
-		# выбираем максимальное значение либо по популярности слова, 
-		# либо по совпадению, а если слово начинается с указанного, 
-		# то еще + 0.5
+        chains = self.sortAndLimitChains(chains, limit)
+        return chains
 
-		matchedProbs=dict([(uni.id, (
-				0.5 * (uni.word.find(half, 0) == 0) + 
-				0.5 * max((uni.count / sumCnt), matchedProbs[uni.id])
-			)) for uni in unis])
+    def _getBiForwardProb(self, id1, id2) -> float:
+        bi = self.repo.getForwardBigrams(id1)
+        if bi and id2 in bi.words:
+            return bi.words[id2]
+        else:
+            return 0.0
 
+    def _appendToChain(self, chain: Chain, id: str | int, word: str) -> Chain:
+        if len(chain.ids):
+            return Chain(ids=chain.ids + [id], words=chain.words + [word], prob=chain.prob * self._getBiForwardProb(chain.ids[-1], id), bias=chain.bias)
+        else:
+            return Chain(ids=[id], words=[word], prob=chain.prob, bias=chain.bias)
 
+    def _prependToChain(self, chain: Chain, id: str | int, word: str) -> Chain:
+        if len(chain.ids):
+            return Chain(ids=[id] + chain.ids, words=[word] + chain.words, prob=chain.prob * self._getBiForwardProb(id, chain.ids[0]), bias=chain.bias)
+        else:
+            return Chain(ids=[id], words=[word], prob=chain.prob, bias=chain.bias)
 
-		newChains: list[Chain] = []
-		# для каждой цепочки
-		for chain in chains:
-			#  если она не пустая, то фильтруем список подходящих слов по вероятности быть в биграме
-			if len(chain.ids):
-				ids = self._intersectIdsForward(chain.ids[-1], matchedIds)
-			else:
-				ids = matchedIds
+    def sortAndLimitChains(self, chains: list[Chain], limit=100) -> list[Chain]:
+        return sorted(chains, key=lambda x: x.prob, reverse=True)[0:limit]
 
-			# для каждого оставшегося варианта порождаем еще одну цепочку с ним
-			for id in ids:
-				prob = chain.prob * matchedProbs[id]
-				if prob > 0 and id not in chain.ids and id != seId:
-					uni=self.repo.getUnigrams([id])[0]
-					newChains.append(Chain(
-						chain.words + [uni.word],
-						chain.ids + [uni.id],
-						prob))
+    @ timeit
+    def expandChainsForward(self, chains: list[Chain], inception: int = 2, limit: int = 100, lowTheshold=0.01):
 
-		chains=self._sortAndLimitChains(newChains, limit)
-		return chains
+        chains = dict([(hash(chain), chain) for chain in chains])
+        # seId = self._getSEId()
+        # ищем вперёд подхощяние для продолжения фраз слова
+        processedChains = []
+        added = len(chains)
+        level = 0
+        while added > 0 and level < inception:
+            level += 1
+            # print(inception, len(chains))
+            lastLen = len(chains)
+            for chain in list(chains.values()):
+                # пропускаем если цепочку уже обработали
+                if chain in processedChains:  
+                    continue
 
-	@ timeit
-	def _expandChainsForward(self, chains: list[Chain], inception: int=2, limit: int=100, threshold=0.0001):
+                bi = self.repo.getForwardBigrams(chain.ids[-1])
 
-		seId=self._getSEId()
-		# ищем вперёд подхощяние для продолжения фраз слова
-		processedChains=[]
-		added=len(chains)
-		level=0
-		while added > 0 and level < inception:
-			level += 1
-			# print(inception, len(chains))
-			lastLen=len(chains)
-			for chain in chains.copy():
-				# пропускаем если конец фразы уже найден
-				if chain.ids[-1] == seId or chain in processedChains:
-					continue
-				# print(chain.ids[-1], minProb)
-				bi=self.repo.getForwardBigrams(chain.ids[-1])
+                minProb = self.calcMinProb(
+                    list(chains.values()), lowTheshold=lowTheshold, softLimit=limit)
 
-				# надо отбросить все биграмы, которые буду ниже минимальной вероятности последнего элемента в ограниченном списке
-				minProb=min(chains, key=lambda x: x.prob).prob if len(
-					chains) >= limit else threshold
-				ids=[]
-				if bi is not None:
-					for id, prob in bi.words.items():
-						if prob*chain.prob < minProb:
-							continue
-						# print(id)
-						if id != seId and id in chain.ids:
-							continue
+                ids = []
+                if bi is not None:
+                    for id, prob in bi.words.items():
+                        if prob*chain.prob < minProb:
+                            continue
+                        ids.append(id)
 
-						ids.append(id)
-				# print(bi, ids)
-				unis=self.repo.getUnigrams(ids)
-				# print(len(unis))
-				for uni in unis:
+                unis = self.repo.getUnigrams(ids)
 
-					newChain=self._appendToChain(
-						chain=chain, id=uni.id, word=uni.word)
-					if newChain in chains or (len(chains) > limit and newChain.prob < minProb):
-						continue
+                for uni in unis:
 
-					# print(newChain)
-					chains.append(newChain)
-					minProb=min(minProb, newChain.prob)
+                    newChain = self._appendToChain(
+                        chain=chain, id=uni.id, word=uni.word)
+                    if newChain in chains or (len(chains) > limit and newChain.prob < minProb):
+                        continue
 
-				processedChains.append(chain)
+                    # print(newChain)
+                    chains[hash(newChain)] = newChain
+                    minProb = min(minProb, newChain.prob)
 
-				chains=self._sortAndLimitChains(chains, limit)
+                processedChains.append(chain)
 
-			added=len(chains) - lastLen
+                chains = self.sortAndLimitChains(list(chains.values()), limit)
+                chains = dict([(hash(chain), chain) for chain in chains])
 
-		return chains
+            added = len(chains) - lastLen
 
-	@ timeit
-	def _expandChainsBackward(self, chains: list[Chain], inception: int=2, limit: int=100, threshold=0.0001):
+        return list(chains.values())
 
-		seId=self._getSEId()
-		# ищем назад подхощяние для продолжения фраз слова
-		processedChains=[]
-		added=len(chains)
-		level=0
-		while added > 0 and level < inception:
-			level += 1
-			lastLen=len(chains)
-			minProb=min(
-				chains, key=lambda x: x.prob).prob if lastLen >= limit else threshold
-			# print(level, len(chains), minProb)
-			for chain in chains.copy():
-				# пропускаем если конец фразы уже найден
-				if chain.ids[0] == seId or chain in processedChains:
-					continue
+    @ timeit
+    def expandChainsBackward(self, chains: list[Chain], inception: int = 2, limit: int = 100, lowTheshold=0.01):
 
-				bi=self.repo.getBackwardBigrams(chain.ids[0])
-				ids=[]
-				if bi is not None:
-					for id, prob in bi.words.items():
-						# print('skip', id, prob*chain.prob , minProb)
-						if prob*chain.prob < minProb:
-							continue
+        chains = dict([(hash(chain), chain) for chain in chains])
 
-						if id != seId and id in chain.ids:
-							continue
+        # ищем назад подхощяние для продолжения фраз слова
+        processedChains = []
+        added = len(chains)
+        level = 0
+        while added > 0 and level < inception:
+            level += 1
+            lastLen = len(chains)
 
-						ids.append(id)
-				unis=self.repo.getUnigrams(ids)
-				# print(unis)
-				for uni in unis:
-					newChain=self._prependToChain(chain=chain,
-													id=uni.id,
-													word=uni.word)
-					if newChain in chains or (lastLen >= limit and newChain.prob < minProb):
-						# print('skip', chain.prob, newChain.prob , minProb)
-						continue
+            minProb = self.calcMinProb(
+                    list(chains.values()), lowTheshold=lowTheshold, softLimit=limit)
 
-					chains.append(newChain)
-					minProb=min(minProb, newChain.prob)
+            for chain in list(chains.values()):
+                # пропускаем если цепочку уже обработали
+                if chain in processedChains: 
+                    continue
 
-				processedChains.append(chain)
+                bi = self.repo.getBackwardBigrams(chain.ids[0])
+                ids = []
+                if bi is not None:
+                    for id, prob in bi.words.items():
+                        # print('skip', id, prob*chain.prob , minProb)
+                        if prob*chain.prob < minProb:
+                            continue
+                        ids.append(id)
 
-				chains=self._sortAndLimitChains(chains)
+                unis = self.repo.getUnigrams(ids)
+                # print(unis)
+                for uni in unis:
+                    newChain = self._prependToChain(chain=chain,
+                                                    id=uni.id,
+                                                    word=uni.word)
+                    if newChain in chains or (lastLen >= limit and newChain.prob < minProb):
+                        # print('skip', chain.prob, newChain.prob , minProb)
+                        continue
 
-			added=len(chains) - lastLen
+                    chains[hash(newChain)] = newChain
+                    minProb = min(minProb, newChain.prob)
 
-		return chains
+                processedChains.append(chain)
 
-	def find(self, phrase: str, limit=100) -> list[Chain]:
+                chains = self.sortAndLimitChains(list(chains.values()), limit)
+                chains = dict([(hash(chain), chain) for chain in chains])
 
-		chains: list[Chain]=self._permanentChains(phrase, limit=limit*10)
-		chains=self._expandChainsForward(
-			chains, inception=2, limit=limit*5, threshold=0.0001)
-		chains=self._expandChainsBackward(
-			chains, inception=2, limit=limit*5, threshold=0.0001)
+            added = len(chains) - lastLen
 
-		return chains
+        return list(chains.values())
+
+    def find(self, phrase: str, limit=100) -> list[Chain]:
+
+        (words, half) = self.splitPhrase(phrase)
+
+        chains = self.getChainsByWords(words=words + [half])
+        chains = self.expandChainsForward(chains, limit=limit)
+        chains = self.expandChainsBackward(chains, limit=limit)
+
+        return chains

@@ -4,9 +4,6 @@ FROM python:slim
 RUN apt update
 RUN apt-get install -y git 
 
-
-
-
 # set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
