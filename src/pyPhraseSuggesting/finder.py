@@ -70,7 +70,7 @@ class Finder:#(ContextDecorator):
     def combineWordsToChains(self, chains: list[Chain], unigrams: list[Unigram], probs: dict[float], lowTheshold=0.01, softLimit=100) -> list[Chain]:
         ''' Добавляем новое слово/слова к цепочкам, порождая новые
                 В каждую цепочку пытаемся вставить каждое слово в каждую позицию,
-                откидываем вариванты ниже порога. 
+                откидываем вариванты ниже порога. Так же пропускаем вариант без вставки
                 Порог считаем, либо как часть от максимальной (Pmax *0.01), если мы входим в софтлимит 
                 по количеству вариантов, либо, если стало больше софтлимит как P последнего элемента лимита 
                 (пока нет, пока только минимальный, его проще получить - без сортировки)
@@ -81,6 +81,7 @@ class Finder:#(ContextDecorator):
             [(uni.id, self.repo.getForwardBigrams(uni.id)) for uni in unigrams])
 
         for chain in chains:
+
             # тупо в лоб достаем все биграммы для расчета вероятности
             # пробегаемся по позициям, подставляя слова, добавляя годные варианты
             chainBigrams = dict(
@@ -134,8 +135,9 @@ class Finder:#(ContextDecorator):
 
         return list(resChains.values())
 
+
     @ timeit
-    def getChainsByWords(self, words: list[str], lowTheshold=0.01, softLimit=100, fuzzyLimit=10, limit=100) -> list[Chain]:
+    def getChainsByWords(self, words: list[str], lowTheshold=0.01, softLimit=100, fuzzyLimit=100, limit=100) -> list[Chain]:
         ''' Из списка слов формируем возможны варианты цепочек
                 Если все слова найдены, то варианты есть только у последнего слова, используемого как префикс
                 Если есть нераспозананные слова, то цепочки размножаются из найденных вариантов нечеткого поиска, 
@@ -147,31 +149,28 @@ class Finder:#(ContextDecorator):
         chains: list[Chain] = [Chain([], [], 1.0, 1.0)]
         # if len(words) == 0:
         unis = self.repo.findWords(words)
-        for (uni, word) in zip(unis, words):
-            if uni is not None:
-                chains = self.combineWordsToChains(
-                    chains, [uni], {uni.id: 1.0}, lowTheshold, softLimit)
-            else:
-                fuzzyProbs = self.repo.matchFuzzyWords(word, fuzzyLimit)
+        for word in  words:
 
-                fuzzyIds = list(fuzzyProbs.keys())
-                fuzzyUnis = self.repo.getUnigrams(fuzzyIds)
+            fuzzyProbs = self.repo.matchFuzzyWords(word, fuzzyLimit)
 
-                # взвешиваем с учетом популярности слова
-                sumCnt = sum([uni.count for uni in fuzzyUnis])
+            fuzzyIds = list(fuzzyProbs.keys())
+            fuzzyUnis = self.repo.getUnigrams(fuzzyIds)
 
-                # выбираем максимальное значение либо по популярности слова,
-                # либо по совпадению, а если слово начинается с указанного,
-                # то еще + 0.25
+            # взвешиваем с учетом популярности слова
+            sumCnt = sum([uni.count for uni in fuzzyUnis])
 
-                matchedProbs = dict([(uni.id, (
-                    0.25 * (uni.word.find(word, 0) == 0) +
-                    0.25 * max((uni.count / sumCnt), fuzzyProbs[uni.id]) +
-                    0.25 * (uni.count / sumCnt) +
-                    0.25 * fuzzyProbs[uni.id]
-                )) for uni in fuzzyUnis])
+            # выбираем максимальное значение либо по популярности слова,
+            # либо по совпадению, а если слово начинается с указанного,
+            # то еще + 0.25
 
-                chains = self.combineWordsToChains(
+            matchedProbs = dict([(uni.id, (
+                0.25 * (uni.word.find(word, 0) == 0) +
+                0.25 * max((uni.count / sumCnt), fuzzyProbs[uni.id]) +
+                0.25 * (uni.count / sumCnt) +
+                0.25 * fuzzyProbs[uni.id]
+            )) for uni in fuzzyUnis])
+
+            chains = self.combineWordsToChains(
                     chains, fuzzyUnis, matchedProbs, lowTheshold, softLimit)
 
         chains = self.sortAndLimitChains(chains, limit)
@@ -203,7 +202,7 @@ class Finder:#(ContextDecorator):
     def expandChainsForward(self, chains: list[Chain], inception: int = 2, limit: int = 100, lowTheshold=0.01):
 
         chains = dict([(hash(chain), chain) for chain in chains])
-        # seId = self._getSEId()
+
         # ищем вперёд подхощяние для продолжения фраз слова
         processedChains = []
         added = len(chains)
