@@ -49,14 +49,14 @@ def loadAndSplit(instance) -> dict[str, Gram]:
     # парсим csv, извлекаем предлоения, из них слова
     csvFile = StringIO(csvStr)
     reader = csv.reader(csvFile, delimiter=';')
-    allWords = ['_']
+    allWords = []#'_']
     for row in reader:
         str = row[0]
         sentences = tokenizer.tokenize(str)
         for sentence in sentences:
             allWords.extend(wordsTokenizer.tokenize(sentence.lower()))
             # добавляем маркер конца
-            allWords.append('_')
+            # allWords.append('_')
             # words.insert(0, '_')
 
     # весь словарь
