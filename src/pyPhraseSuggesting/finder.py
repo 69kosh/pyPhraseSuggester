@@ -137,7 +137,7 @@ class Finder:#(ContextDecorator):
 
 
     @ timeit
-    def getChainsByWords(self, words: list[str], lowTheshold=0.01, softLimit=100, fuzzyLimit=100, limit=100) -> list[Chain]:
+    def getChainsByWords(self, words: list[str], lowTheshold=0.01, softLimit=100, fuzzyLimit=500, limit=100) -> list[Chain]:
         ''' Из списка слов формируем возможны варианты цепочек
                 Если все слова найдены, то варианты есть только у последнего слова, используемого как префикс
                 Если есть нераспозананные слова, то цепочки размножаются из найденных вариантов нечеткого поиска, 
@@ -149,26 +149,42 @@ class Finder:#(ContextDecorator):
         chains: list[Chain] = [Chain([], [], 1.0, 1.0)]
         # if len(words) == 0:
         unis = self.repo.findWords(words)
-        for word in  words:
+        for word in words:
+            if word == '':
+                # если еще ничего не ввели, берём биграммы последних слов цепочек, и используем их
+                # если вообще нет слов, берём просто популярные слова
+                ids = []
+                for chain in chains:
+                    if len(chain.ids):
+                        bi = self.repo.getForwardBigrams(chain.ids[-1])
+                        if bi is not None:
+                            ids += list(bi.words.keys())[0:fuzzyLimit]
 
-            fuzzyProbs = self.repo.matchFuzzyWords(word, fuzzyLimit)
+                if len(ids) < fuzzyLimit:
+                    ids += self.repo.matchWords('', fuzzyLimit)
+                
+                fuzzyProbs = dict(zip(ids, [1.0]*len(ids)))
+
+            else:
+                fuzzyProbs = self.repo.matchFuzzyWords(word, fuzzyLimit)
+
 
             fuzzyIds = list(fuzzyProbs.keys())
             fuzzyUnis = self.repo.getUnigrams(fuzzyIds)
 
             # взвешиваем с учетом популярности слова
             sumCnt = sum([uni.count for uni in fuzzyUnis])
+            maxCnt = max([uni.count for uni in fuzzyUnis])
 
             # выбираем максимальное значение либо по популярности слова,
             # либо по совпадению, а если слово начинается с указанного,
             # то еще + 0.25
 
             matchedProbs = dict([(uni.id, (
-                0.25 * (uni.word.find(word, 0) == 0) +
-                0.25 * max((uni.count / sumCnt), fuzzyProbs[uni.id]) +
-                0.25 * (uni.count / sumCnt) +
-                0.25 * fuzzyProbs[uni.id]
-            )) for uni in fuzzyUnis])
+                0.1 * (uni.word.find(word, 0) == 0) +
+                0.1 * (uni.count / maxCnt) +
+                0.1 * fuzzyProbs[uni.id] * fuzzyProbs[uni.id]
+            ) if (uni.word != word) else 1.0) for uni in fuzzyUnis])
 
             chains = self.combineWordsToChains(
                     chains, fuzzyUnis, matchedProbs, lowTheshold, softLimit)
