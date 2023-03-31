@@ -33,5 +33,5 @@ app.add_middleware(
 
 @app.get("/")
 async def find(phrase: str ='', limit: int = 20):
-    result = finder.find(phrase=phrase, limit = limit)
-    return [' '.join(item.words) for item in result][0:limit]#.strip('_ ')
+    result = finder.find(phrase=phrase, limit = max(limit, 100))
+    return [' '.join(item.words) for item in result][0:limit]#.strip('_ ') #+ ' - ' + str(item.prob) + ' - ' + str(item.bias)
