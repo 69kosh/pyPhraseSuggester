@@ -174,7 +174,7 @@ class Finder:#(ContextDecorator):
 
             # взвешиваем с учетом популярности слова
             sumCnt = sum([uni.count for uni in fuzzyUnis])
-            maxCnt = max([uni.count for uni in fuzzyUnis])
+            maxCnt = max([uni.count for uni in fuzzyUnis] + [0])
 
             # выбираем максимальное значение либо по популярности слова,
             # либо по совпадению, а если слово начинается с указанного,

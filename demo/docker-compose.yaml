@@ -7,6 +7,6 @@ services:
 
     # # for local library
     # volumes:
-    #   - ./../src/pyPhraseSuggesting:/app/pyPhraseSuggesting:ro
+    #   - ./../src/pyPhraseSuggester:/app/pyPhraseSuggester:ro
     ports:
       - 80:8000

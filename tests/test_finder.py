@@ -1,5 +1,5 @@
-from pyPhraseSuggesting.finder import Finder
-from pyPhraseSuggesting.memoRepo import MemoRepo
+from pyPhraseSuggester.finder import Finder
+from pyPhraseSuggester.memoRepo import MemoRepo
 import pytest
 
 

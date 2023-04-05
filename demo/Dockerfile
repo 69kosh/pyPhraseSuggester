@@ -17,5 +17,5 @@ COPY ./api.py .
 COPY ./*.csv .
 
 # for github library
-RUN git clone https://github.com/69kosh/pyPhraseSuggesting /mySrc/pyPhraseSuggesting
-ENV PYTHONPATH "${PYTHONPATH}:/mySrc/pyPhraseSuggesting/src"
+RUN git clone https://github.com/69kosh/pyPhraseSuggester /mySrc/pyPhraseSuggester
+ENV PYTHONPATH "${PYTHONPATH}:/mySrc/pyPhraseSuggester/src"

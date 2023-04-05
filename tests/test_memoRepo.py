@@ -1,5 +1,5 @@
 import pytest
-from pyPhraseSuggesting.memoRepo import *
+from pyPhraseSuggester.memoRepo import *
 
 @pytest.fixture
 def repo():

@@ -2,7 +2,7 @@
 import sys
 sys.path.append('../src')
 
-from pyPhraseSuggesting import Finder, MemoRepo
+from pyPhraseSuggester import Finder, MemoRepo
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
