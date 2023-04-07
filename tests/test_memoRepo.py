@@ -20,51 +20,51 @@ def test_getUnigrams(repo:ABCRepo):
     assert unis[2].word == uni1[0].word
 
 def test_findWords(repo:ABCRepo):
-    unis = repo.findWords(['мама', 'мыла', 'ноги', 'мылом'])
+    unis = repo.getUnigramsByWords(['мама', 'мыла', 'ноги', 'мылом'])
 
     assert len(unis) == 4
     assert unis[1].word == 'мыла'
     assert unis[2] == None
 
 
-def test_matchWords(repo:ABCRepo):
-    unis = repo.findWords(['мыла', 'мама', 'мылом', '_', 'мыла'])
+def test_matchPrefix(repo:ABCRepo):
+    unis = repo.getUnigramsByWords(['мыла', 'мама', 'мылом', '_', 'мыла'])
 
-    ids = repo.matchWords('м', limit = 2)
+    ids = repo.matchPrefix('м', limit = 2)
     assert ids == [unis[0].id, unis[1].id]
 
-    ids = repo.matchWords('х', limit = 2)
+    ids = repo.matchPrefix('х', limit = 2)
     assert ids == []
 
-    ids = repo.matchWords('мы', limit = 2)
+    ids = repo.matchPrefix('мы', limit = 2)
     assert ids == [unis[0].id, unis[2].id]
 
-    ids = repo.matchWords('хм', limit = 2)
+    ids = repo.matchPrefix('хм', limit = 2)
     assert ids == []
 
-    ids = repo.matchWords('мыл', limit = 2) 
+    ids = repo.matchPrefix('мыл', limit = 2) 
     assert ids == [unis[0].id, unis[2].id]
 
-    ids = repo.matchWords('мыло', limit = 2) 
+    ids = repo.matchPrefix('мыло', limit = 2) 
     assert ids == [unis[2].id]
 
-    ids = repo.matchWords('абырвалг', limit = 2) 
+    ids = repo.matchPrefix('абырвалг', limit = 2) 
     assert ids == []
 
-    ids = repo.matchWords('', limit = 2) 
+    ids = repo.matchPrefix('', limit = 2) 
     assert ids == [unis[3].id, unis[4].id]
 
 
-def test_matchFuzzyWords(repo:ABCRepo):
-    unis = repo.findWords(['мыла', 'мылом'])
-    probs = repo.matchFuzzyWords('мылом')
+def test_matchFuzzy(repo:ABCRepo):
+    unis = repo.getUnigramsByWords(['мыла', 'мылом'])
+    probs = repo.matchFuzzy('мылом')
     assert list(probs.keys()) == [unis[1].id, unis[0].id]
 
-    probs = repo.matchFuzzyWords('foo')
+    probs = repo.matchFuzzy('foo')
     assert probs == {}
 
 def test_getForwardBigrams(repo:ABCRepo):
-    unis = repo.findWords(['мыла', 'раму', 'руки', '_'])
+    unis = repo.getUnigramsByWords(['мыла', 'раму', 'руки', '_'])
     bi = repo.getForwardBigrams(unis[0].id)
     assert bi is not None
     assert unis[0].id not in bi.words
@@ -76,7 +76,7 @@ def test_getForwardBigrams(repo:ABCRepo):
 
 
 def test_getBackwardBigrams(repo:ABCRepo):
-    unis = repo.findWords(['мыла', 'мама', 'кусок'])
+    unis = repo.getUnigramsByWords(['мыла', 'мама', 'кусок'])
     bi = repo.getBackwardBigrams(unis[0].id)
     assert bi is not None
     assert unis[0].id not in bi.words

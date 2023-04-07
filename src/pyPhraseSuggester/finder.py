@@ -148,7 +148,7 @@ class Finder:#(ContextDecorator):
         '''
         chains: list[Chain] = [Chain([], [], 1.0, 1.0)]
         # if len(words) == 0:
-        unis = self.repo.findWords(words)
+        unis = self.repo.getUnigramsByWords(words)
         for word in words:
             if word == '':
                 # если еще ничего не ввели, берём биграммы последних слов цепочек, и используем их
@@ -161,12 +161,12 @@ class Finder:#(ContextDecorator):
                             ids += list(bi.words.keys())[0:fuzzyLimit]
 
                 if len(ids) < fuzzyLimit:
-                    ids += self.repo.matchWords('', fuzzyLimit)
+                    ids += self.repo.matchPrefix('', fuzzyLimit)
                 
                 fuzzyProbs = dict(zip(ids, [1.0]*len(ids)))
 
             else:
-                fuzzyProbs = self.repo.matchFuzzyWords(word, fuzzyLimit)
+                fuzzyProbs = self.repo.matchFuzzy(word, fuzzyLimit)
 
 
             fuzzyIds = list(fuzzyProbs.keys())

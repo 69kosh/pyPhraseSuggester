@@ -23,7 +23,7 @@ class ABCRepo(ABC):
         ...
 
     @abstractmethod
-    def findWords(self, words: list[str]) -> list[Unigram | None]:  # pragma: no cover
+    def getUnigramsByWords(self, words: list[str]) -> list[Unigram | None]:  # pragma: no cover
         ...
 
     @abstractmethod
@@ -35,9 +35,9 @@ class ABCRepo(ABC):
         ...
 
     @abstractmethod
-    def matchWords(self, prefix: str, limit: int = 100) -> list[str | int]:  # pragma: no cover
+    def matchPrefix(self, prefix: str, limit: int = 100) -> list[str | int]:  # pragma: no cover
         ...
 
     @abstractmethod
-    def matchFuzzyWords(self, word: str, limit: int = 100, additionalIds: list[str | int] = []) -> dict[str | int, float]:  # pragma: no cover
+    def matchFuzzy(self, word: str, limit: int = 100, additionalIds: list[str | int] = []) -> dict[str | int, float]:  # pragma: no cover
         ...

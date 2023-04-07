@@ -98,7 +98,7 @@ class MemoRepo(ABCRepo):
 		limit = max if limit is None else limit
 		return [self._unigrams[id] if id < max else None for id in ids[0:limit]]
 
-	def findWords(self, words: list[str]) -> list[Unigram | None]:
+	def getUnigramsByWords(self, words: list[str]) -> list[Unigram | None]:
 		res = []
 		for word in words:
 			if word in self._word2Id:
@@ -107,7 +107,7 @@ class MemoRepo(ABCRepo):
 				res.append(None)
 		return res
 
-	def matchWords(self, prefix: str, limit: int = 100) -> list[str|int]:
+	def matchPrefix(self, prefix: str, limit: int = 100) -> list[str|int]:
 		ids = []
 		if len(prefix) > 2:
 			if prefix[0:3] not in self._prefix32Id:
@@ -142,7 +142,7 @@ class MemoRepo(ABCRepo):
 		if id in self._backwardBi:
 			return self._backwardBi[id]
 
-	def matchFuzzyWords(self, word: str, limit: int = 100, additionalIds: list[str|int] = []) -> dict[str|int, float]:
+	def matchFuzzy(self, word: str, limit: int = 100, additionalIds: list[str|int] = []) -> dict[str|int, float]:
 		'''Для слов которые не нашли четко, подбираем близкие варианты
 			Для этого используем сравнение по левенштейну, 
 			а чтобы не перебирать все слова, бьем слово на триграмы и ищем 
@@ -152,7 +152,7 @@ class MemoRepo(ABCRepo):
 		# если фраза короткая - ищем по префиксу
 		# ids = []
 		# if len(word) < 5:
-		ids = self.matchWords(prefix=word, limit = limit) + additionalIds
+		ids = self.matchPrefix(prefix=word, limit = limit) + additionalIds
 		# print(ids)
 		# разбиваем на триграммы
 		lists = {}
