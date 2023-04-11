@@ -1,53 +1,91 @@
 from .abcRepo import *
 from rapidfuzz import *
 
+
 class MemoRepo(ABCRepo):
-	def __init__(self, unigrams, bigrams, bigramsLimit = 10000) -> None:
+	def __init__(self, unigrams, bigrams, bigramsLimit=10000) -> None:
 		super().__init__()
 
-		self._prepareUnigrams(unigrams)
-		self._prepareBigrams(bigrams, bigramsLimit)
-		self._prepareFuzzyIndex()
-
-		# print(sys.getsizeof(self._unigrams), len(self._unigrams))
-
-	def _prepareUnigrams(self, unigrams):
-		self._unigrams = []
+		self._unigrams = {}
 		self._word2Id = {}
 		self._prefix32Id = {}
 		self._prefix22Id = {}
 		self._prefix12Id = {}
+		self._forwardBi = {}
+		self._backwardBi = {}
+		self._fuzzyIndex = {}
 
-		unigrams = sorted(unigrams, key=lambda x: x[1], reverse=True)
+		self.addUnigrams(unigrams)
+		self.addBigrams(bigrams, bigramsLimit)
 
-		id:int = 0
+	def addUnigrams(self, unigrams: list[tuple[str, int]]):
+
+		keys1, keys2, keys3 = (set(), set(), set())
+
+		seqId: int = max(0, len(self._unigrams))
 		for uni in unigrams:
 			word = str(uni[0])
 			cnt = int(uni[1])
-			self._unigrams.append(Unigram(id, word, cnt))
-			self._word2Id[word] = id
+			if word in self._word2Id:
+				id = self._word2Id[word]
+				self._unigrams[id].count += cnt
+			else:
+				id = seqId
+				self._unigrams[id] = Unigram(id, word, cnt)
+				seqId += 1
+				self._word2Id[word] = id
 
-			if word[0] not in self._prefix12Id:
-				self._prefix12Id[word[0:1]] = []
-			self._prefix12Id[word[0:1]].append(id)
+			key1 = word[0:1]
+			if key1 not in self._prefix12Id:
+				self._prefix12Id[key1] = {}
+			if id in self._prefix12Id[key1]:
+				self._prefix12Id[key1][id] += cnt
+			else:
+				self._prefix12Id[key1][id] = cnt
+
+			keys1.add(key1)
 
 			if len(word) > 1:
-				if word[0:2] not in self._prefix22Id:
-					self._prefix22Id[word[0:2]] = []
-				self._prefix22Id[word[0:2]].append(id)
+				key2 = word[0:2]
+				if key2 not in self._prefix22Id:
+					self._prefix22Id[key2] = {}
+				if id in self._prefix22Id[key2]:
+					self._prefix22Id[key2][id] += cnt
+				else:
+					self._prefix22Id[key2][id] = cnt
+
+				keys2.add(key2)
 
 			if len(word) > 2:
-				if word[0:3] not in self._prefix32Id:
-					self._prefix32Id[word[0:3]] = []
-				self._prefix32Id[word[0:3]].append(id)
+				key3 = word[0:3]
+				if key3 not in self._prefix32Id:
+					self._prefix32Id[key3] = {}
+				if id in self._prefix32Id[key3]:
+					self._prefix32Id[key3][id] += cnt
+				else:
+					self._prefix32Id[key3][id] = cnt
 
-			id += 1
-		
-		# print(self._prefix12Id['f'])
+				keys3.add(key3)
 
-	def _prepareBigrams(self, bigrams, limit = 100):
-		self._forwardBi = {}
-		self._backwardBi = {}
+		# sort all unigrams, and touched prefixes
+		self._unigrams = dict(sorted(
+			self._unigrams.items(), key=lambda x: x[1].count, reverse=True))
+
+		for key in keys1:
+			self._prefix12Id[key] = dict(
+				sorted(self._prefix12Id[key].items(), key=lambda x: x[1], reverse=True))
+
+		for key in keys2:
+			self._prefix22Id[key] = dict(
+				sorted(self._prefix22Id[key].items(), key=lambda x: x[1], reverse=True))
+
+		for key in keys3:
+			self._prefix32Id[key] = dict(
+				sorted(self._prefix32Id[key].items(), key=lambda x: x[1], reverse=True))
+
+		self.prepareFuzzyIndex()
+
+	def addBigrams(self, bigrams: list[tuple[str, str, int]], limit: int = 10000):
 
 		for bi in bigrams:
 			fromId = self._word2Id[str(bi[0])]
@@ -56,35 +94,37 @@ class MemoRepo(ABCRepo):
 
 			if fromId not in self._forwardBi:
 				self._forwardBi[fromId] = Bigrams(
-					id=fromId, count=count, words={toId: count})
+					id=fromId, count=count, counts={toId: count}, words={})
 			else:
 				self._forwardBi[fromId].count += count
-				if len(self._forwardBi[fromId].words) < limit:
-					self._forwardBi[fromId].words[toId] = count
+				if len(self._forwardBi[fromId].counts) < limit:
+					self._forwardBi[fromId].counts[toId] = count
 
 			if toId not in self._backwardBi:
 				self._backwardBi[toId] = Bigrams(
-					id=toId, count=count, words={fromId: count})
+					id=toId, count=count, counts={fromId: count}, words={})
 			else:
 				self._backwardBi[toId].count += count
-				if len(self._backwardBi[toId].words) < limit:
-					self._backwardBi[toId].words[fromId] = count
+				if len(self._backwardBi[toId].counts) < limit:
+					self._backwardBi[toId].counts[fromId] = count
 
 		for id in self._forwardBi:
-			for id2 in self._forwardBi[id].words:
-				self._forwardBi[id].words[id2] /= self._forwardBi[id].count
+			for id2 in self._forwardBi[id].counts:
+				self._forwardBi[id].words[id2] = (self._forwardBi[id].counts[id2]
+												  / self._forwardBi[id].count)
 
 		for id in self._backwardBi:
-			for id2 in self._backwardBi[id].words:
-				self._backwardBi[id].words[id2] /= self._forwardBi[id2].count
+			for id2 in self._backwardBi[id].counts:
+				self._backwardBi[id].words[id2] = (self._backwardBi[id].counts[id2]
+												   / self._forwardBi[id2].count)
 
-	def _prepareFuzzyIndex(self):
+	def prepareFuzzyIndex(self):
 		self._fuzzyIndex = {}
 		# для каждой униграмы разбиваем её на триграмы (может хватит би?)
 		# и добавляем в словарь по ключу=триграмме ид униграмы
 		# чтобы потом разбив слово на триграмы найти списки униграмы содержащих хотя бы одну из них
-		# таким образом будем отсекать остальные слова из нечеткого поиска	
-		for uni in self._unigrams:
+		# таким образом будем отсекать остальные слова из нечеткого поиска
+		for uni in self._unigrams.values():
 			if len(uni.word) < 3:
 				continue
 			for i in range(0, len(uni.word)-2, 1):
@@ -107,29 +147,31 @@ class MemoRepo(ABCRepo):
 				res.append(None)
 		return res
 
-	def matchPrefix(self, prefix: str, limit: int = 100) -> list[str|int]:
+	def matchPrefix(self, prefix: str, limit: int = 100) -> list[str | int]:
 		ids = []
 		if len(prefix) > 2:
 			if prefix[0:3] not in self._prefix32Id:
 				return []
 			if len(prefix) == 3:
-				ids = self._prefix32Id[prefix[0:3]]
+				ids = list(self._prefix32Id[prefix[0:3]].keys())
 			else:
-				for id in self._prefix32Id[prefix[0:3]]:
+				for id in self._prefix32Id[prefix[0:3]].keys():
 					uni = self._unigrams[id]
 					if uni.word.find(prefix) == 0:
 						ids.append(id)
 		elif len(prefix) == 2:
 			if prefix not in self._prefix22Id:
 				return []
-			ids = self._prefix22Id[prefix]
+			ids = list(self._prefix22Id[prefix].keys())
 		elif len(prefix) == 1:
 			if prefix not in self._prefix12Id:
 				return []
-			ids = self._prefix12Id[prefix]
+			ids = list(self._prefix12Id[prefix].keys())
 		else:
-			for uni in self._unigrams[0:limit]:
+			for uni in self._unigrams.values():
 				ids.append(uni.id)
+				if len(ids) == limit:
+					break
 
 		return ids[0:limit]
 
@@ -137,22 +179,21 @@ class MemoRepo(ABCRepo):
 		if id in self._forwardBi:
 			return self._forwardBi[id]
 
-
 	def getBackwardBigrams(self, id: str | int) -> Bigrams | None:
 		if id in self._backwardBi:
 			return self._backwardBi[id]
 
-	def matchFuzzy(self, word: str, limit: int = 100, additionalIds: list[str|int] = []) -> dict[str|int, float]:
+	def matchFuzzy(self, word: str, limit: int = 100, additionalIds: list[str | int] = []) -> dict[str | int, float]:
 		'''Для слов которые не нашли четко, подбираем близкие варианты
-			Для этого используем сравнение по левенштейну, 
-			а чтобы не перебирать все слова, бьем слово на триграмы и ищем 
-			подходящие слова, с включением хотя бы 50% этих грам по индексу триграм
-				https://pypi.org/project/rapidfuzz/'''
+				Для этого используем сравнение по левенштейну, 
+				а чтобы не перебирать все слова, бьем слово на триграмы и ищем 
+				подходящие слова, с включением хотя бы 50% этих грам по индексу триграм
+						https://pypi.org/project/rapidfuzz/'''
 
 		# если фраза короткая - ищем по префиксу
 		# ids = []
 		# if len(word) < 5:
-		ids = self.matchPrefix(prefix=word, limit = limit) + additionalIds
+		ids = self.matchPrefix(prefix=word, limit=limit) + additionalIds
 		# print(ids)
 		# разбиваем на триграммы
 		lists = {}
@@ -165,7 +206,7 @@ class MemoRepo(ABCRepo):
 			else:
 				lists[tri] = set()
 
-		# составляем общий список, и считаем сколько пересечений (включений) 
+		# составляем общий список, и считаем сколько пересечений (включений)
 		# для каждого элемента
 		counts = {}
 		all = set(all)
@@ -176,19 +217,17 @@ class MemoRepo(ABCRepo):
 					counts[id] = 0
 				counts[id] += 1
 
-
-		l = (len(word)-2) // 2 # половина токинов
+		l = (len(word)-2) // 2  # половина токинов
 		for id in counts:
 			if counts[id] >= l:
 				ids.append(id)
-		
+
 		# print(ids)
 		unis = self.getUnigrams(list(set(ids)))
 		ratios = {}
 		for uni in unis:
 			ratios[uni.id] = (fuzz.ratio(word, uni.word) + 10.0)/110.0
 			# print(word, uni.word, ratios[uni.id])
-		
+
 		# сортируем и подрезаем, делаем словарь
 		return dict(sorted(ratios.items(), key=lambda item: item[1], reverse=True)[0:limit])
-

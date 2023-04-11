@@ -13,10 +13,20 @@ class Unigram:
 class Bigrams:
     id: str | int
     count: int
+    counts: dict[str | int, int]
     words: dict[str | int, float]
 
 
 class ABCRepo(ABC):
+
+
+    @abstractmethod
+    def addUnigrams(self, unigrams: list[tuple[str, int]]):  # pragma: no cover
+        ...
+
+    @abstractmethod
+    def addBigrams(self, bigrams: list[tuple[str, str, int]], limit: int = 10000):  # pragma: no cover
+        ...
 
     @abstractmethod
     def getUnigrams(self, ids: list[str | int], limit: int = None) -> list[Unigram | None]:  # pragma: no cover
