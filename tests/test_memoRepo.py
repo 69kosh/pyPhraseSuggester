@@ -84,3 +84,28 @@ def test_getBackwardBigrams(repo:ABCRepo):
     assert unis[2].id in bi.words
     bi = repo.getBackwardBigrams(100500)
     assert bi is None
+
+
+def test_addUnigrams(repo:ABCRepo):
+    unis = repo.getUnigramsByWords(['мыла', 'мама', 'мылом', '_', 'мыла'])
+    ids = repo.matchPrefix('м', limit = 2)
+    assert ids == [unis[0].id, unis[1].id]
+
+    repo.addUnigrams([('мыла', 5), ('мылом', 10)])
+
+    ids = repo.matchPrefix('м', limit = 2)
+    assert ids == [unis[2].id, unis[4].id]
+
+
+def test_addBigrams(repo:ABCRepo):
+    repo.addUnigrams([('ноги', 1)])
+    repo.addBigrams([('мыла', 'ноги', 1)])
+
+    unis = repo.getUnigramsByWords(['мыла', 'раму', 'руки', 'ноги'])
+    bi = repo.getForwardBigrams(unis[0].id)
+
+    assert bi is not None
+    assert unis[0].id not in bi.words
+    assert unis[1].id in bi.words
+    assert unis[2].id in bi.words
+    assert unis[3].id in bi.words
