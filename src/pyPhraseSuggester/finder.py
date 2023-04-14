@@ -1,4 +1,3 @@
-from contextlib import ContextDecorator
 from dataclasses import dataclass
 from .abcRepo import ABCRepo, Unigram, Bigrams
 
@@ -179,7 +178,6 @@ class Finder:#(ContextDecorator):
             # выбираем максимальное значение либо по популярности слова,
             # либо по совпадению, а если слово начинается с указанного,
             # то еще + 0.25
-            print(fuzzyProbs, fuzzyUnis)
             matchedProbs = dict([(uni.id, (
                 0.1 * (uni.word.find(word, 0) == 0) +
                 0.1 * (uni.count / maxCnt) +

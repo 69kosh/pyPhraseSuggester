@@ -1,4 +1,4 @@
-# pyPhraseSuggesting
+# pyPhraseSuggester
 Backend implementation for autocomplete form fields.
 Поиск подходящих фраз. Для автозаполнения в текстовых полях форм.
 

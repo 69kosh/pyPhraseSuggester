@@ -1,9 +1,9 @@
 from .abcRepo import *
 from rapidfuzz import *
-
+import csv
 
 class MemoRepo(ABCRepo):
-	def __init__(self, unigrams, bigrams, bigramsLimit=10000) -> None:
+	def __init__(self) -> None:
 		super().__init__()
 
 		self._unigrams = {}
@@ -15,8 +15,8 @@ class MemoRepo(ABCRepo):
 		self._backwardBi = {}
 		self._fuzzyIndex = {}
 
-		self.addUnigrams(unigrams)
-		self.addBigrams(bigrams, bigramsLimit)
+		# self.addUnigrams(unigrams)
+		# self.addBigrams(bigrams, bigramsLimit)
 
 	def addUnigrams(self, unigrams: list[tuple[str, int]]):
 
@@ -231,3 +231,18 @@ class MemoRepo(ABCRepo):
 
 		# сортируем и подрезаем, делаем словарь
 		return dict(sorted(ratios.items(), key=lambda item: item[1], reverse=True)[0:limit])
+
+	def getAllUnigrams(self) -> list[tuple[str, int]]:
+		for uni in list(self._unigrams.values()):
+			yield (uni.word, uni.count)
+
+	def getAllBigrams(self) -> list[tuple[str, str, int]]:
+		for fromId in list(self._forwardBi.keys()):
+			fromWord = self._unigrams[fromId].word
+			for toId in self._forwardBi[fromId].counts:
+				toWord = self._unigrams[toId].word
+				yield (fromWord, toWord, self._forwardBi[fromId].counts[toId])
+				
+	
+
+	

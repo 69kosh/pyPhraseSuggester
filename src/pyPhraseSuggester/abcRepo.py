@@ -23,9 +23,17 @@ class ABCRepo(ABC):
     @abstractmethod
     def addUnigrams(self, unigrams: list[tuple[str, int]]):  # pragma: no cover
         ...
+    
+    @abstractmethod
+    def getAllUnigrams(self) -> list[tuple[str, int]]: # pragma: no cover
+        ...
 
     @abstractmethod
     def addBigrams(self, bigrams: list[tuple[str, str, int]], limit: int = 10000):  # pragma: no cover
+        ...
+
+    @abstractmethod
+    def getAllBigrams(self) -> list[tuple[str, str, int]]: # pragma: no cover
         ...
 
     @abstractmethod
@@ -51,3 +59,4 @@ class ABCRepo(ABC):
     @abstractmethod
     def matchFuzzy(self, word: str, limit: int = 100, additionalIds: list[str | int] = []) -> dict[str | int, float]:  # pragma: no cover
         ...
+

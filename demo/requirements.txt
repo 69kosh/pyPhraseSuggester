@@ -1,3 +1,4 @@
 rapidfuzz
 fastapi
+fastapi_utils
 uvicorn
