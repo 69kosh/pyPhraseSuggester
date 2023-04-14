@@ -6,7 +6,10 @@ def repo():
     unigrams = [('мама', 2), ('мыла', 3), ('раму', 2), ('руки', 1), ('мылом', 1), ('кусок', 1), ('_', 4)]
     bigrams = [('_', 'мама', 1), ('мама', 'мыла', 1), ('мыла', 'раму', 1), ('мыла', 'руки', 1), ('руки', 'мылом', 1),
            ('раму', '_', 1), ('мылом', '_', 1), ('_', 'кусок', 1), ('кусок', 'мыла', 1), ('мыла', '_', 1)]
-    return MemoRepo(unigrams, bigrams)
+    repo = MemoRepo()
+    repo.addUnigrams(unigrams)
+    repo.addBigrams(bigrams)
+    return repo
 
 
 def test_getUnigrams(repo:ABCRepo):

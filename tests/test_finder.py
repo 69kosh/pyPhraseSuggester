@@ -9,7 +9,11 @@ def repo():
                 ('руки', 1), ('мылом', 1), ('кусок', 1)]
     bigrams = [('мама', 'мыла', 1), ('мыла', 'раму', 1), ('мыла', 'руки', 1), ('руки', 'мылом', 1),
                ('кусок', 'мыла', 1)]
-    return MemoRepo(unigrams, bigrams)
+               
+    repo = MemoRepo()
+    repo.addUnigrams(unigrams)
+    repo.addBigrams(bigrams)
+    return repo
 
 
 @pytest.fixture
