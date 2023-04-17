@@ -197,17 +197,17 @@ class Finder:#(ContextDecorator):
         else:
             return 0.0
 
-    def _appendToChain(self, chain: Chain, id: str | int, word: str) -> Chain:
+    def _appendToChain(self, chain: Chain, id: str | int, word: str, prob:float = 0.9) -> Chain:
         if len(chain.ids):
-            return Chain(ids=chain.ids + [id], words=chain.words + [word], prob=chain.prob * self._getBiForwardProb(chain.ids[-1], id), bias=chain.bias)
+            return Chain(ids=chain.ids + [id], words=chain.words + [word], prob=prob * chain.prob * self._getBiForwardProb(chain.ids[-1], id), bias=chain.bias)
         else:
-            return Chain(ids=[id], words=[word], prob=chain.prob, bias=chain.bias)
+            return Chain(ids=[id], words=[word], prob=prob * chain.prob, bias=chain.bias)
 
-    def _prependToChain(self, chain: Chain, id: str | int, word: str) -> Chain:
+    def _prependToChain(self, chain: Chain, id: str | int, word: str, prob:float = 0.5) -> Chain:
         if len(chain.ids):
-            return Chain(ids=[id] + chain.ids, words=[word] + chain.words, prob=chain.prob * self._getBiForwardProb(id, chain.ids[0]), bias=chain.bias)
+            return Chain(ids=[id] + chain.ids, words=[word] + chain.words, prob=prob * chain.prob * self._getBiForwardProb(id, chain.ids[0]), bias=chain.bias)
         else:
-            return Chain(ids=[id], words=[word], prob=chain.prob, bias=chain.bias)
+            return Chain(ids=[id], words=[word], prob=prob * chain.prob, bias=chain.bias)
 
     def sortAndLimitChains(self, chains: list[Chain], limit=100) -> list[Chain]:
         return sorted(chains, key=lambda x: x.prob, reverse=True)[0:limit]
