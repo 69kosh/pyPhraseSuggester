@@ -24,7 +24,7 @@ app.add_middleware(
 
 @app.get("/")
 async def find(phrase: str ='', limit: int = 20):
-    result = finder.find(phrase=phrase, limit = max(limit, 100))
+    result = finder.find(phrase=phrase, limit = min(max(limit, 100), 1000))
     return [' '.join(item.words) for item in result[0:limit]]
 
 @app.post("/add")

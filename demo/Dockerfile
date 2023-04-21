@@ -1,8 +1,8 @@
 FROM python:slim
 
 # for github library
-RUN apt update
-RUN apt-get install -y git 
+# RUN apt update
+# RUN apt-get install -y git 
 
 # set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -17,5 +17,5 @@ COPY ./api.py .
 COPY ./*.csv .
 
 # for github library
-RUN git clone https://github.com/69kosh/pyPhraseSuggester /mySrc/pyPhraseSuggester
-ENV PYTHONPATH "${PYTHONPATH}:/mySrc/pyPhraseSuggester/src"
+# RUN git clone https://github.com/69kosh/pyPhraseSuggester /mySrc/pyPhraseSuggester
+# ENV PYTHONPATH "${PYTHONPATH}:/mySrc/pyPhraseSuggester/src"

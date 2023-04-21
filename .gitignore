@@ -134,3 +134,5 @@ grams/
 coverage.*
 .coverage
 test.bat
+
+node_modules
