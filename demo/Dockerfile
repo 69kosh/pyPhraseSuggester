@@ -14,7 +14,7 @@ COPY ./requirements.txt .
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
 COPY ./api.py .
-COPY ./*.csv .
+COPY ./*.csv ./
 
 # for github library
 # RUN git clone https://github.com/69kosh/pyPhraseSuggester /mySrc/pyPhraseSuggester
